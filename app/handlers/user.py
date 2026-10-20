@@ -9,6 +9,11 @@ from app.database.db import async_session
 from app.database.crud import get_or_create_user, get_user_balance, create_pending_payment
 from app.database.models import TransactionType
 from config import Config
+from app.services.userbot import UserbotService
+from app.database.models import UserbotSession
+from sqlalchemy import select
+
+userbot_service = UserbotService()
 
 router = Router()
 
@@ -154,3 +159,93 @@ async def back_to_main(callback: CallbackQuery, state: FSMContext):
         reply_markup=InlineKeyboards.main_menu()
     )
     await callback.answer()
+
+class PremiumStates(StatesGroup):
+    waiting_for_phone = State()
+    waiting_for_code = State()
+    waiting_for_password = State()
+
+@router.callback_query(F.data == "buy_premium")
+async def buy_premium_start(callback: CallbackQuery, state: FSMContext):
+    async with async_session() as session:
+        balance = await get_user_balance(session, callback.from_user.id)
+    
+    if balance < Config.PREMIUM_PRICE:
+        await callback.message.edit_text(
+            f"❌ Balansingizda yetarli mablag' yo'q.\n"
+            f"Kerakli: <b>{Config.PREMIUM_PRICE:,.0f} so'm</b>\n"
+            f"Sizda: <b>{balance:,.0f} so'm</b>\n\n"
+            f"Iltimos, avval hisobingizni to'ldiring.",
+            reply_markup=InlineKeyboards.back_to_main()
+        )
+        await callback.answer()
+        return
+
+    await callback.message.edit_text(
+        "📱 Iltimos, Telegram akkauntingizni ulash uchun telefon raqamingizni kiriting.\n"
+        "Format: <b>+998901234567</b>"
+    )
+    await state.set_state(PremiumStates.waiting_for_phone)
+    await callback.answer()
+
+@router.message(PremiumStates.waiting_for_phone)
+async def process_phone(message: Message, state: FSMContext):
+    phone = message.text.strip()
+    if not phone.startswith("+") or len(phone) < 10:
+        await message.answer("❌ Noto'g'ri format. Iltimos, +998901234567 ko'rinishida kiriting.")
+        return
+    
+    success, result = await userbot_service.send_code(phone)
+    if success:
+        await state.update_data(phone=phone)
+        await message.answer("📩 Telegram'ingizga kod yuborildi. Kodni kiriting:")
+        await state.set_state(PremiumStates.waiting_for_code)
+    else:
+        await message.answer(f"❌ Xatolik: {result}")
+
+@router.message(PremiumStates.waiting_for_code)
+async def process_code(message: Message, state: FSMContext):
+    code = message.text.strip()
+    success, result = await userbot_service.sign_in(code)
+    
+    if success:
+        # Sessiyani bazaga saqlash
+        data = await state.get_data()
+        async with async_session() as session:
+            new_session = UserbotSession(
+                user_id=message.from_user.id,
+                phone_number=data["phone"],
+                session_string=result
+            )
+            session.add(new_session)
+            await session.commit()
+        
+        await message.answer("✅ Akkaunt muvaffaqiyatli ulandi! Endi tizim avtomatik xaridni boshlaydi.")
+        await state.clear()
+        # Keyingi bosqichda xarid logikasi qo'shiladi
+    elif result == "2FA_PASSWORD":
+        await message.answer("🔐 Ikki bosqichli parolni kiriting:")
+        await state.set_state(PremiumStates.waiting_for_password)
+    else:
+        await message.answer(f"❌ Xatolik: {result}. Qaytadan kiriting.")
+
+@router.message(PremiumStates.waiting_for_password)
+async def process_password(message: Message, state: FSMContext):
+    password = message.text.strip()
+    success, result = await userbot_service.sign_in("", password) # Kod allaqachon yuborilgan
+    
+    if success:
+        data = await state.get_data()
+        async with async_session() as session:
+            new_session = UserbotSession(
+                user_id=message.from_user.id,
+                phone_number=data["phone"],
+                session_string=result
+            )
+            session.add(new_session)
+            await session.commit()
+        
+        await message.answer("✅ Akkaunt muvaffaqiyatli ulandi! Endi tizim avtomatik xaridni boshlaydi.")
+        await state.clear()
+    else:
+        await message.answer(f"❌ Xatolik: {result}")
