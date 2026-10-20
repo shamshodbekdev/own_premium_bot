@@ -1,7 +1,5 @@
-import asyncio
 import logging
-import re
-from telethon import TelegramClient, types
+from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError, FloodWaitError
 from config import Config
@@ -43,59 +41,7 @@ class UserbotService:
         except Exception as e:
             return False, str(e)
 
-    async def get_payment_url(self, session_string: str):
-        """@PremiumBot dan 3DS to'lov havolasini olish."""
-        client = TelegramClient(StringSession(session_string), Config.API_ID, Config.API_HASH)
-        await client.connect()
-        
-        try:
-            logger.info("=== TO'LOV HAVOLASI OLINMOQDA ===")
-            await client.send_message('@PremiumBot', '/start')
-            await asyncio.sleep(3)
-            
-            # 1. "Pay" tugmasini topish va bosish
-            messages = await client.get_messages('@PremiumBot', limit=5)
-            pay_btn = None
-            for msg in messages:
-                if msg.buttons:
-                    for row in msg.buttons:
-                        for btn in row:
-                            if "pay" in btn.text.lower() or "to'lash" in btn.text.lower():
-                                pay_btn = btn
-                                break
-                    if pay_btn:
-                        break
-            
-            if not pay_btn:
-                return False, "To'lov tugmasi topilmadi."
-            
-            await pay_btn.click()
-            logger.info("To'lov tugmasi bosildi. Karta ma'lumotlari kiritilmoqda...")
-            await asyncio.sleep(3)
-            
-            # 2. Karta ma'lumotlarini yuborish (ketma-ketlik rasmlardagi kabi)
-            await client.send_message('@PremiumBot', Config.ADMIN_CARD_NUMBER)
-            await asyncio.sleep(2)
-            await client.send_message('@PremiumBot', Config.ADMIN_CARD_EXPIRY)
-            await asyncio.sleep(2)
-            await client.send_message('@PremiumBot', Config.ADMIN_CARD_CVV)
-            await asyncio.sleep(5)  # 3DS javobini kutish
-            
-            # 3. 3DS havolasini qidirish
-            messages = await client.get_messages('@PremiumBot', limit=10)
-            for msg in messages:
-                if msg.text:
-                    urls = re.findall(r'https?://[^\s]+', msg.text)
-                    if urls:
-                        return True, urls[0]
-                if msg.entities:
-                    for entity in msg.entities:
-                        if isinstance(entity, types.MessageEntityTextUrl):
-                            return True, entity.url
-            
-            return False, "3DS havolasi topilmadi. Iltimos, @PremiumBot javobini tekshiring."
-        except Exception as e:
-            logger.error(f"Xatolik: {e}")
-            return False, str(e)
-        finally:
-            await client.disconnect()
+    def get_payment_url(self) -> str:
+        """To'g'ridan-to'g'ri @PremiumBot to'lov havolasini qaytarish."""
+        # Bu havola foydalanuvchini @PremiumBot ning to'lov sahifasiga olib boradi
+        return "https://t.me/premiumbot?start=pay"
