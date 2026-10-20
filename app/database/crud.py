@@ -2,6 +2,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.models import User, Transaction, TransactionType
 
+from sqlalchemy.exc import IntegrityError
+
 async def get_or_create_user(session: AsyncSession, user_id: int, full_name: str, username: str) -> User:
     stmt = select(User).where(User.id == user_id)
     result = await session.execute(stmt)
@@ -10,8 +12,16 @@ async def get_or_create_user(session: AsyncSession, user_id: int, full_name: str
     if not user:
         user = User(id=user_id, full_name=full_name, username=username)
         session.add(user)
-        await session.commit()
-        await session.refresh(user)
+        try:
+            await session.commit()
+        except IntegrityError:
+            # Agar boshqa parallel so'rov yozib qo'ygan bo'lsa, qayta o'qiymiz
+            await session.rollback()
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+        else:
+            await session.refresh(user)
+    
     return user
 
 async def get_user_balance(session: AsyncSession, user_id: int) -> float:
