@@ -82,3 +82,17 @@ async def back_to_main(callback: CallbackQuery, state: FSMContext):
         reply_markup=InlineKeyboards.main_menu()
     )
     await callback.answer()
+
+@router.callback_query(F.data == "guide")
+async def show_guide(callback: CallbackQuery):
+    text = (
+        "📓 <b>Qo'llanma</b>\n\n"
+        "1. Avval <b>Pul kiritish</b> bo'limi orqali hisobingizni to'ldiring.\n"
+        "2. So'ngra <b>1 Oylik Premium Olish</b> tugmasini bosing.\n"
+        "3. Akkauntingizni ulash uchun telefon raqamingizni kiriting.\n"
+        "4. Telegram'dan kelgan kodni kiriting.\n"
+        "5. Tizim avtomatik ravishda Premium obunani sotib oladi.\n\n"
+        "Savollaringiz bo'lsa, adminga murojaat qiling."
+    )
+    await callback.message.edit_text(text, reply_markup=InlineKeyboards.back_to_main())
+    await callback.answer()

@@ -8,30 +8,41 @@ class InlineKeyboards:
     @staticmethod
     def main_menu() -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()
-        
+
         builder.button(
             text="⭐️ 1 Oylik Premium Olish", 
             callback_data="buy_premium",
             style="success" # Yashil
         )
+        
+
         builder.button(
-            text="💳 Hisobni To'ldirish", 
-            callback_data="top_up",
-            style="primary" # Ko'k
-        )
-        builder.button(
-            text="👤 Mening Profilim", 
+            text="👤 Profilim", 
             callback_data="profile",
             style="primary" # Ko'k
         )
         builder.button(
+            text="💰 Pul kiritish", 
+            callback_data="top_up",
+            style="primary" # Ko'k
+        )
+        
+        builder.button(
+            text="📓 Qo'llanma", 
+            callback_data="guide",
+            style="primary"
+        )
+
+        builder.button(
             text="⚙️ Admin Panel", 
             callback_data="admin_panel",
-            style="danger" # Qizil
+            style="danger"
         )
-        builder.adjust(1)
+        
+        builder.adjust(1, 2, 1, 1)
+        
         return builder.as_markup()
-
+    
     @staticmethod
     def payment_check() -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()
