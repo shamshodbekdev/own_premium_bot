@@ -39,3 +39,13 @@ class Transaction(Base):
     tx_type: Mapped[TransactionType] = mapped_column(Enum(TransactionType))
     description: Mapped[str] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class PendingPayment(Base):
+    __tablename__ = "pending_payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
+    amount: Mapped[float] = mapped_column(Float)
+    photo_id: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending") # pending, approved, rejected
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

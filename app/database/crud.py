@@ -33,3 +33,25 @@ async def update_balance(session: AsyncSession, user_id: int, amount: float, tx_
         tx = Transaction(user_id=user_id, amount=amount, tx_type=tx_type, description=description)
         session.add(tx)
         await session.commit()
+
+from app.database.models import PendingPayment
+
+async def create_pending_payment(session: AsyncSession, user_id: int, amount: float, photo_id: str) -> PendingPayment:
+    payment = PendingPayment(user_id=user_id, amount=amount, photo_id=photo_id)
+    session.add(payment)
+    await session.commit()
+    await session.refresh(payment)
+    return payment
+
+async def get_pending_payment(session: AsyncSession, payment_id: int) -> PendingPayment:
+    stmt = select(PendingPayment).where(PendingPayment.id == payment_id)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+async def update_payment_status(session: AsyncSession, payment_id: int, status: str) -> None:
+    stmt = select(PendingPayment).where(PendingPayment.id == payment_id)
+    result = await session.execute(stmt)
+    payment = result.scalar_one_or_none()
+    if payment:
+        payment.status = status
+        await session.commit()

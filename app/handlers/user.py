@@ -1,3 +1,5 @@
+from aiogram import Router, F, Bot
+from app.database.crud import create_pending_payment
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart
@@ -62,16 +64,37 @@ async def top_up_start(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 @router.message(TopUpStates.waiting_for_receipt, F.photo)
-async def process_receipt(message: Message, state: FSMContext):
-    # Admin tasdiqlashi uchun bazaga yozamiz (keyingi bosqichda to'liq qilamiz)
+async def process_receipt(message: Message, state: FSMContext, bot: Bot):
     photo_id = message.photo[-1].file_id
+    
+    async with async_session() as session:
+        payment = await create_pending_payment(
+            session, 
+            message.from_user.id, 
+            Config.PREMIUM_PRICE, 
+            photo_id
+        )
+    
+    # Adminga xabar yuborish
+    admin_text = (
+        f"🔔 <b>Yangi to'lov so'rovi!</b>\n\n"
+        f"👤 Foydalanuvchi: {message.from_user.full_name}\n"
+        f"🆔 ID: <code>{message.from_user.id}</code>\n"
+        f"💰 Summa: {Config.PREMIUM_PRICE:,.0f} so'm\n\n"
+        f"Chekni tekshirib, tasdiqlang:"
+    )
+    
+    await bot.send_photo(
+        chat_id=Config.ADMIN_ID,
+        photo=photo_id,
+        caption=admin_text,
+        reply_markup=InlineKeyboards.payment_check(payment.id)
+    )
     
     await message.answer(
         "✅ Chekingiz qabul qilindi. Admin tasdiqlagandan so'ng balansingizga mablag' qo'shiladi.",
         reply_markup=InlineKeyboards.back_to_main()
     )
-    
-    # Adminga xabar yuborish logikasi (keyingi bosqichda admin.py da)
     await state.clear()
 
 @router.callback_query(F.data == "back_to_main")

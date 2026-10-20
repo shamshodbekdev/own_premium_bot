@@ -44,21 +44,21 @@ class InlineKeyboards:
         return builder.as_markup()
     
     @staticmethod
-    def payment_check() -> InlineKeyboardMarkup:
+    def payment_check(payment_id: int) -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()
         builder.button(
             text="✅ Tasdiqlash", 
-            callback_data="admin_approve_payment",
-            style="success" # Yashil
+            callback_data=f"admin_approve_{payment_id}",
+            style="success"
         )
         builder.button(
             text="❌ Rad Etish", 
-            callback_data="admin_reject_payment",
-            style="danger" # Qizil
+            callback_data=f"admin_reject_{payment_id}",
+            style="danger"
         )
         builder.adjust(2)
         return builder.as_markup()
-
+    
     @staticmethod
     def userbot_link() -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()
