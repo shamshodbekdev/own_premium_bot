@@ -1,8 +1,12 @@
 import asyncio
-from telethon import TelegramClient
+import logging
+import re
+from telethon import TelegramClient, types
 from telethon.sessions import StringSession
-from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError, FloodWaitError, ResendCodeRequest
+from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError, FloodWaitError
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 class UserbotService:
     def __init__(self):
@@ -36,76 +40,62 @@ class UserbotService:
             return False, "Kod xato"
         except FloodWaitError as e:
             return False, f"Iltimos, {e.seconds} soniya kutib turing."
-        except ResendCodeRequest:
-            return False, "Iltimos, 1-2 daqiqa kutib, qayta urinib ko'ring."
         except Exception as e:
             return False, str(e)
 
-    async def purchase_premium(self, session_string: str):
-        """@PremiumBot orqali 1 oylik Premium sotib olish va 3DS havolasini olish."""
+    async def get_payment_url(self, session_string: str):
+        """@PremiumBot dan 3DS to'lov havolasini olish."""
         client = TelegramClient(StringSession(session_string), Config.API_ID, Config.API_HASH)
         await client.connect()
         
         try:
-            # @PremiumBot ga /start yuborish
+            logger.info("=== TO'LOV HAVOLASI OLINMOQDA ===")
             await client.send_message('@PremiumBot', '/start')
             await asyncio.sleep(3)
             
-            # Oxirgi xabarlarni olish
-            messages = await client.get_messages('@PremiumBot', limit=3)
-            invoice_btn = None
-            
-            # "Pay 35 990,00 UZS" tugmasini qidirish
+            # 1. "Pay" tugmasini topish va bosish
+            messages = await client.get_messages('@PremiumBot', limit=5)
+            pay_btn = None
             for msg in messages:
                 if msg.buttons:
                     for row in msg.buttons:
                         for btn in row:
-                            if "pay" in btn.text.lower() and "uzs" in btn.text.lower():
-                                invoice_btn = btn
+                            if "pay" in btn.text.lower() or "to'lash" in btn.text.lower():
+                                pay_btn = btn
                                 break
-                    if invoice_btn:
+                    if pay_btn:
                         break
             
-            if not invoice_btn:
-                return False, "To'lov tugmasi topilmadi. @PremiumBot interfeysi o'zgargan bo'lishi mumkin."
+            if not pay_btn:
+                return False, "To'lov tugmasi topilmadi."
             
-            # To'lov tugmasini bosish
-            await invoice_btn.click()
+            await pay_btn.click()
+            logger.info("To'lov tugmasi bosildi. Karta ma'lumotlari kiritilmoqda...")
             await asyncio.sleep(3)
             
-            # Karta ma'lumotlarini kiritish (rasmlaringizdagi ketma-ketlik)
-            # 1. Karta raqami
+            # 2. Karta ma'lumotlarini yuborish (ketma-ketlik rasmlardagi kabi)
             await client.send_message('@PremiumBot', Config.ADMIN_CARD_NUMBER)
             await asyncio.sleep(2)
-            
-            # 2. Amal qilish muddati (MM/YY)
             await client.send_message('@PremiumBot', Config.ADMIN_CARD_EXPIRY)
             await asyncio.sleep(2)
-            
-            # 3. CVV kod
             await client.send_message('@PremiumBot', Config.ADMIN_CARD_CVV)
-            await asyncio.sleep(5)  # 3DS so'rovi kelishini kutish
+            await asyncio.sleep(5)  # 3DS javobini kutish
             
-            # 3DS havolasini qidirish (api.checkout.com yoki shunga o'xshash)
-            messages = await client.get_messages('@PremiumBot', limit=5)
+            # 3. 3DS havolasini qidirish
+            messages = await client.get_messages('@PremiumBot', limit=10)
             for msg in messages:
-                if msg.text and ("http" in msg.text or "3ds" in msg.text.lower()):
-                    # 3DS havolasini topdik
-                    return True, msg.text
+                if msg.text:
+                    urls = re.findall(r'https?://[^\s]+', msg.text)
+                    if urls:
+                        return True, urls[0]
+                if msg.entities:
+                    for entity in msg.entities:
+                        if isinstance(entity, types.MessageEntityTextUrl):
+                            return True, entity.url
             
-            return False, "3DS havolasi topilmadi. Iltimos, qo'lda tekshiring."
+            return False, "3DS havolasi topilmadi. Iltimos, @PremiumBot javobini tekshiring."
         except Exception as e:
-            return False, f"Xatolik: {str(e)}"
+            logger.error(f"Xatolik: {e}")
+            return False, str(e)
         finally:
             await client.disconnect()
-
-    async def cleanup_and_logout(self, session_string: str):
-        """Yozishmalarni tozalash va akkauntdan chiqish."""
-        client = TelegramClient(StringSession(session_string), Config.API_ID, Config.API_HASH)
-        await client.connect()
-        try:
-            await client.delete_dialog('@PremiumBot')
-            await client.log_out()
-            return True, "Tozalandi"
-        except Exception as e:
-            return False, str(e)
