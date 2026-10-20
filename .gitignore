@@ -1,0 +1,19 @@
+# Virtual Environment
+venv/
+env/
+
+# Maxfiy ma'lumotlar
+.env
+
+# Python kesh fayllari
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Telethon sessiyalari
+*.session
+*.session-journal
+
+# VS Code sozlamalari
+.vscode/
