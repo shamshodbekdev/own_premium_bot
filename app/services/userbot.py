@@ -21,24 +21,25 @@ class UserbotService:
         except Exception as e:
             return False, str(e)
 
-    async def sign_in(self, code: str, password: str = None):
-        """Kodni tekshirish va sessiya yaratish."""
+    async def sign_in(self, code: str = None, password: str = None):
+        """Kodni yoki parolni tekshirish va sessiya yaratish."""
         try:
-            await self.client.sign_in(self.phone, code, phone_code_hash=self.phone_code_hash)
-            return True, self.client.session.save()
-        except SessionPasswordNeededError:
             if password:
-                try:
-                    await self.client.sign_in(password=password)
-                    return True, self.client.session.save()
-                except Exception as e:
-                    return False, str(e)
+                # Agar parol kiritilgan bo'lsa, faqat parolni tekshiramiz
+                await self.client.sign_in(password=password)
+            else:
+                # Agar kod kiritilgan bo'lsa, kodni tekshiramiz
+                await self.client.sign_in(self.phone, code, phone_code_hash=self.phone_code_hash)
+            
+            return True, self.client.session.save()
+        
+        except SessionPasswordNeededError:
             return False, "2FA_PASSWORD"
         except PhoneCodeInvalidError:
             return False, "Kod xato"
         except Exception as e:
             return False, str(e)
-
+        
     async def logout_and_clear(self, session_string: str):
         """Akkauntdan chiqish va yozishmalarni tozalash."""
         client = TelegramClient(StringSession(session_string), Config.API_ID, Config.API_HASH)

@@ -7,33 +7,38 @@ from aiogram.fsm.state import State, StatesGroup
 from app.keyboards.inline import InlineKeyboards
 from app.database.db import async_session
 from app.database.crud import get_or_create_user, get_user_balance, create_pending_payment
-from app.database.models import TransactionType
-from config import Config
+from app.database.models import TransactionType, UserbotSession
 from app.services.userbot import UserbotService
-from app.database.models import UserbotSession
-from sqlalchemy import select
-
-userbot_service = UserbotService()
+from config import Config
 
 router = Router()
+userbot_service = UserbotService()
 
 MIN_DEPOSIT = 1000
 MAX_DEPOSIT = 10_000_000
+
 
 class TopUpStates(StatesGroup):
     waiting_for_amount = State()
     waiting_for_receipt = State()
 
+
+class PremiumStates(StatesGroup):
+    waiting_for_phone = State()
+    waiting_for_code = State()
+    waiting_for_password = State()
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     async with async_session() as session:
         user = await get_or_create_user(
-            session, 
-            message.from_user.id, 
-            message.from_user.full_name, 
+            session,
+            message.from_user.id,
+            message.from_user.full_name,
             message.from_user.username
         )
-    
+
     welcome_text = (
         f"Assalomu alaykum, <b>{message.from_user.full_name}</b>!\n\n"
         f"Bu bot orqali siz Telegram Premium obunasini avtomatik sotib olishingiz mumkin.\n\n"
@@ -42,11 +47,12 @@ async def cmd_start(message: Message):
     )
     await message.answer(welcome_text, reply_markup=InlineKeyboards.main_menu())
 
+
 @router.callback_query(F.data == "profile")
 async def show_profile(callback: CallbackQuery):
     async with async_session() as session:
         balance = await get_user_balance(session, callback.from_user.id)
-    
+
     text = (
         f"👤 <b>Sizning Profilingiz</b>\n\n"
         f"🆔 ID: <code>{callback.from_user.id}</code>\n"
@@ -55,6 +61,7 @@ async def show_profile(callback: CallbackQuery):
     )
     await callback.message.edit_text(text, reply_markup=InlineKeyboards.back_to_main())
     await callback.answer()
+
 
 @router.callback_query(F.data == "top_up")
 async def top_up_start(callback: CallbackQuery, state: FSMContext):
@@ -68,6 +75,7 @@ async def top_up_start(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(text, reply_markup=InlineKeyboards.back_to_main())
     await state.set_state(TopUpStates.waiting_for_amount)
     await callback.answer()
+
 
 @router.message(TopUpStates.waiting_for_amount)
 async def process_amount(message: Message, state: FSMContext):
@@ -85,7 +93,7 @@ async def process_amount(message: Message, state: FSMContext):
         return
 
     await state.update_data(amount=amount)
-    
+
     text = (
         f"💳 <b>To'lovni Amalga Oshirish</b>\n\n"
         f"Summa: <b>{amount:,.0f} so'm</b>\n\n"
@@ -97,25 +105,26 @@ async def process_amount(message: Message, state: FSMContext):
     await message.answer(text, reply_markup=InlineKeyboards.back_to_main())
     await state.set_state(TopUpStates.waiting_for_receipt)
 
+
 @router.message(TopUpStates.waiting_for_receipt, F.photo)
 async def process_receipt(message: Message, state: FSMContext, bot: Bot):
     photo_id = message.photo[-1].file_id
     data = await state.get_data()
     amount = data.get("amount")
-    
+
     if not amount:
         await message.answer("Xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring.")
         await state.clear()
         return
-    
+
     async with async_session() as session:
         payment = await create_pending_payment(
-            session, 
-            message.from_user.id, 
-            amount, 
+            session,
+            message.from_user.id,
+            amount,
             photo_id
         )
-    
+
     admin_text = (
         f"🔔 <b>Yangi to'lov so'rovi!</b>\n\n"
         f"👤 Foydalanuvchi: {message.from_user.full_name}\n"
@@ -123,19 +132,20 @@ async def process_receipt(message: Message, state: FSMContext, bot: Bot):
         f"💰 Summa: {amount:,.0f} so'm\n\n"
         f"Chekni tekshirib, tasdiqlang:"
     )
-    
+
     await bot.send_photo(
         chat_id=Config.ADMIN_ID,
         photo=photo_id,
         caption=admin_text,
         reply_markup=InlineKeyboards.payment_check(payment.id)
     )
-    
+
     await message.answer(
         "✅ Chekingiz qabul qilindi. Admin tasdiqlagandan so'ng balansingizga mablag' qo'shiladi.",
         reply_markup=InlineKeyboards.back_to_main()
     )
     await state.clear()
+
 
 @router.callback_query(F.data == "guide")
 async def show_guide(callback: CallbackQuery):
@@ -151,25 +161,12 @@ async def show_guide(callback: CallbackQuery):
     await callback.message.edit_text(text, reply_markup=InlineKeyboards.back_to_main())
     await callback.answer()
 
-@router.callback_query(F.data == "back_to_main")
-async def back_to_main(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback.message.edit_text(
-        "Asosiy menyu. Kerakli bo'limni tanlang:",
-        reply_markup=InlineKeyboards.main_menu()
-    )
-    await callback.answer()
-
-class PremiumStates(StatesGroup):
-    waiting_for_phone = State()
-    waiting_for_code = State()
-    waiting_for_password = State()
 
 @router.callback_query(F.data == "buy_premium")
 async def buy_premium_start(callback: CallbackQuery, state: FSMContext):
     async with async_session() as session:
         balance = await get_user_balance(session, callback.from_user.id)
-    
+
     if balance < Config.PREMIUM_PRICE:
         await callback.message.edit_text(
             f"❌ Balansingizda yetarli mablag' yo'q.\n"
@@ -188,13 +185,14 @@ async def buy_premium_start(callback: CallbackQuery, state: FSMContext):
     await state.set_state(PremiumStates.waiting_for_phone)
     await callback.answer()
 
+
 @router.message(PremiumStates.waiting_for_phone)
 async def process_phone(message: Message, state: FSMContext):
     phone = message.text.strip()
     if not phone.startswith("+") or len(phone) < 10:
         await message.answer("❌ Noto'g'ri format. Iltimos, +998901234567 ko'rinishida kiriting.")
         return
-    
+
     success, result = await userbot_service.send_code(phone)
     if success:
         await state.update_data(phone=phone)
@@ -203,13 +201,13 @@ async def process_phone(message: Message, state: FSMContext):
     else:
         await message.answer(f"❌ Xatolik: {result}")
 
+
 @router.message(PremiumStates.waiting_for_code)
 async def process_code(message: Message, state: FSMContext):
     code = message.text.strip()
-    success, result = await userbot_service.sign_in(code)
-    
+    success, result = await userbot_service.sign_in(code=code)
+
     if success:
-        # Sessiyani bazaga saqlash
         data = await state.get_data()
         async with async_session() as session:
             new_session = UserbotSession(
@@ -219,21 +217,21 @@ async def process_code(message: Message, state: FSMContext):
             )
             session.add(new_session)
             await session.commit()
-        
+
         await message.answer("✅ Akkaunt muvaffaqiyatli ulandi! Endi tizim avtomatik xaridni boshlaydi.")
         await state.clear()
-        # Keyingi bosqichda xarid logikasi qo'shiladi
     elif result == "2FA_PASSWORD":
         await message.answer("🔐 Ikki bosqichli parolni kiriting:")
         await state.set_state(PremiumStates.waiting_for_password)
     else:
         await message.answer(f"❌ Xatolik: {result}. Qaytadan kiriting.")
 
+
 @router.message(PremiumStates.waiting_for_password)
 async def process_password(message: Message, state: FSMContext):
     password = message.text.strip()
-    success, result = await userbot_service.sign_in("", password) # Kod allaqachon yuborilgan
-    
+    success, result = await userbot_service.sign_in(password=password)
+
     if success:
         data = await state.get_data()
         async with async_session() as session:
@@ -244,8 +242,18 @@ async def process_password(message: Message, state: FSMContext):
             )
             session.add(new_session)
             await session.commit()
-        
+
         await message.answer("✅ Akkaunt muvaffaqiyatli ulandi! Endi tizim avtomatik xaridni boshlaydi.")
         await state.clear()
     else:
         await message.answer(f"❌ Xatolik: {result}")
+
+
+@router.callback_query(F.data == "back_to_main")
+async def back_to_main(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text(
+        "Asosiy menyu. Kerakli bo'limni tanlang:",
+        reply_markup=InlineKeyboards.main_menu()
+    )
+    await callback.answer()
